@@ -19,7 +19,7 @@
   });
   const hint = document.createElement('span');
   hint.className = 'scroll-hint';
-  hint.textContent = '向下滚动 / 滑动翻页';
+  hint.textContent = '左右滑动 / ← → 翻页';
   panels[0].querySelector('.actions').after(hint);
   const dots = document.createElement('nav');
   dots.className = 'page-dots';
@@ -35,7 +35,7 @@
   document.body.append(dots);
   const controls = document.createElement('div');
   controls.className = 'page-controls';
-  controls.innerHTML = '<button class="page-button" aria-label="上一页">↑</button><span class="page-count" aria-live="polite"></span><button class="page-button" aria-label="下一页">↓</button>';
+  controls.innerHTML = '<button class="page-button" aria-label="上一页">←</button><span class="page-count" aria-live="polite"></span><button class="page-button" aria-label="下一页">→</button>';
   document.querySelector('.footer-row').append(controls);
   const [prev, next] = controls.querySelectorAll('button');
   prev.addEventListener('click', () => go(current - 1, true, true));
@@ -83,21 +83,24 @@
     return direction > 0 ? panel.scrollTop + panel.clientHeight < panel.scrollHeight - 3 : panel.scrollTop > 3;
   }
   main.addEventListener('wheel', event => {
-    if (event.ctrlKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
-    const direction = Math.sign(event.deltaY);
-    if (!direction || canReadMore(direction)) return;
+    if (event.ctrlKey) return;
+    const horizontal = Math.abs(event.deltaX) > Math.abs(event.deltaY);
+    const delta = horizontal ? event.deltaX : event.deltaY;
+    const direction = Math.sign(delta);
+    // Vertical input scrolls long articles; horizontal input turns the page.
+    if (!direction || (!horizontal && canReadMore(direction))) return;
     event.preventDefault();
     const now = performance.now();
     if (now < lockedUntil) { lastWheel = now; return; }
     if (now - lastWheel > 220 || Math.sign(wheelTotal) !== direction) wheelTotal = 0;
     lastWheel = now;
-    wheelTotal += event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? main.clientHeight : 1);
+    wheelTotal += delta * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? main.clientWidth : 1);
     if (Math.abs(wheelTotal) >= 45) go(current + direction);
   }, {passive:false});
   document.addEventListener('keydown', event => {
     if (event.altKey || event.ctrlKey || event.metaKey || event.target.closest('input,textarea,select,button,summary,[contenteditable="true"]')) return;
-    const direction = ['ArrowDown','PageDown'].includes(event.key) ? 1 : ['ArrowUp','PageUp'].includes(event.key) ? -1 : 0;
-    if (direction && !canReadMore(direction)) {
+    const direction = ['ArrowRight','PageDown'].includes(event.key) ? 1 : ['ArrowLeft','PageUp'].includes(event.key) ? -1 : 0;
+    if (direction) {
       event.preventDefault();
       if (!event.repeat && performance.now() >= lockedUntil) go(current + direction, true, true);
     }
@@ -105,13 +108,13 @@
   let gesture = null;
   main.addEventListener('touchstart', event => {
     if (event.touches.length !== 1) { gesture = null; return; }
-    gesture = {x:event.touches[0].clientX,y:event.touches[0].clientY,top:!canReadMore(-1),bottom:!canReadMore(1)};
+    gesture = {x:event.touches[0].clientX,y:event.touches[0].clientY};
   }, {passive:true});
   main.addEventListener('touchend', event => {
     if (!gesture || !event.changedTouches.length) return;
     const dy = gesture.y - event.changedTouches[0].clientY;
     const dx = gesture.x - event.changedTouches[0].clientX;
-    if (Math.abs(dy) > 65 && Math.abs(dy) > Math.abs(dx)*1.3 && performance.now() > lockedUntil && (dy > 0 ? gesture.bottom : gesture.top)) go(current + Math.sign(dy));
+    if (Math.abs(dx) > 65 && Math.abs(dx) > Math.abs(dy)*1.3 && performance.now() > lockedUntil) go(current + Math.sign(dx));
     gesture = null;
   }, {passive:true});
   main.addEventListener('touchcancel', () => { gesture = null; }, {passive:true});
@@ -153,6 +156,7 @@
   const image = new Image();
   const ready = new Promise(resolve => { image.onload = resolve; image.onerror = resolve; });
   image.src = 'assets/ink-landscape-background.png';
-  Promise.all([ready,new Promise(resolve => setTimeout(resolve,reduce.matches ? 0 : 1300))]).then(finish);
+  const fontReady = document.fonts ? document.fonts.load('400 24px "Xia Xing Kai"', '你好关于我作品集博客').catch(() => {}) : Promise.resolve();
+  Promise.all([ready,fontReady,new Promise(resolve => setTimeout(resolve,reduce.matches ? 0 : 1300))]).then(finish);
   setTimeout(finish,6000);
 })();
